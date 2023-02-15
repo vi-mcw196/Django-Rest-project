@@ -8,7 +8,7 @@ from rest_framework.response import Response
 
 
 # Create your views here.
-@api_view(['POST'])
+@api_view(['GET'])
 def api_home(request, *args, **kwargs):
     """
     DRF API View
