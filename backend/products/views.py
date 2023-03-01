@@ -1,18 +1,21 @@
-from django.shortcuts import get_object_or_404
-from rest_framework import authentication, generics, mixins, permissions
+from rest_framework import generics, mixins
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
+# from django.http import Http404
+from django.shortcuts import get_object_or_404
+from api.mixins import (
+    StaffEditorPermissionMixin,
+    UserQuerySetMixin)
 
 from .models import Product
-from .permissions import IsStaffEditorPermission
 from .serializers import ProductSerializer
 
-
-class ProductListCreateAPIView(generics.ListCreateAPIView):
+class ProductListCreateAPIView(
+    UserQuerySetMixin,
+    StaffEditorPermissionMixin,
+    generics.ListCreateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
-    authentication_classes = [authentication.SessionAuthentication]
-    permission_classes = [permissions.IsAdminUser, IsStaffEditorPermission]
 
     def perform_create(self, serializer):
         # serializer.save(user=self.request.user)
@@ -20,23 +23,36 @@ class ProductListCreateAPIView(generics.ListCreateAPIView):
         content = serializer.validated_data.get('content') or None
         if content is None:
             content = title
-        serializer.save(content=content)
+        serializer.save(user=self.request.user, content=content)
         # send a Django signal
+    
+    # def get_queryset(self, *args, **kwargs):
+    #     qs = super().get_queryset(*args, **kwargs)
+    #     request = self.request
+    #     user = request.user
+    #     if not user.is_authenticated:
+    #         return Product.objects.none()
+    #     # print(request.user)
+    #     return qs.filter(user=request.user)
 
 
 product_list_create_view = ProductListCreateAPIView.as_view()
 
-
-class ProductDetailAPIView(generics.RetrieveAPIView):
+class ProductDetailAPIView(
+    UserQuerySetMixin, 
+    StaffEditorPermissionMixin,
+    generics.RetrieveAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     # lookup_field = 'pk' ??
 
-
 product_detail_view = ProductDetailAPIView.as_view()
 
 
-class ProductUpdateAPIView(generics.UpdateAPIView):
+class ProductUpdateAPIView(
+    UserQuerySetMixin,
+    StaffEditorPermissionMixin,
+    generics.UpdateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     lookup_field = 'pk'
@@ -45,24 +61,24 @@ class ProductUpdateAPIView(generics.UpdateAPIView):
         instance = serializer.save()
         if not instance.content:
             instance.content = instance.title
-            ##
-
+            ## 
 
 product_update_view = ProductUpdateAPIView.as_view()
 
 
-class ProductDestroyAPIView(generics.DestroyAPIView):
+class ProductDestroyAPIView(
+    UserQuerySetMixin,
+    StaffEditorPermissionMixin,
+    generics.DestroyAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     lookup_field = 'pk'
 
     def perform_destroy(self, instance):
-        # instance
+        # instance 
         super().perform_destroy(instance)
 
-
 product_destroy_view = ProductDestroyAPIView.as_view()
-
 
 # class ProductListAPIView(generics.ListAPIView):
 #     '''
@@ -79,12 +95,12 @@ class ProductMixinView(
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     generics.GenericAPIView
-):
+    ):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
     lookup_field = 'pk'
 
-    def get(self, request, *args, **kwargs):  # HTTP -> get
+    def get(self, request, *args, **kwargs): #HTTP -> get
         pk = kwargs.get("pk")
         if pk is not None:
             return self.retrieve(request, *args, **kwargs)
@@ -92,7 +108,7 @@ class ProductMixinView(
 
     def post(self, request, *args, **kwargs):
         return self.create(request, *args, **kwargs)
-
+    
     def perform_create(self, serializer):
         # serializer.save(user=self.request.user)
         title = serializer.validated_data.get('title')
@@ -103,13 +119,11 @@ class ProductMixinView(
 
     # def post(): #HTTP -> post
 
-
 product_mixin_view = ProductMixinView.as_view()
-
 
 @api_view(['GET', 'POST'])
 def product_alt_view(request, pk=None, *args, **kwargs):
-    method = request.method
+    method = request.method  
 
     if method == "GET":
         if pk is not None:
@@ -118,7 +132,7 @@ def product_alt_view(request, pk=None, *args, **kwargs):
             data = ProductSerializer(obj, many=False).data
             return Response(data)
         # list view
-        queryset = Product.objects.all()
+        queryset = Product.objects.all() 
         data = ProductSerializer(queryset, many=True).data
         return Response(data)
 
